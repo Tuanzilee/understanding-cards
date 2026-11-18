@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>理解卡</title>
+<style>
+:root{
+  --bg:#f7f5f0; --card:#ffffff; --ink:#2b2a27; --muted:#7a766d; --line:#e4e0d6;
+  --accent:#3d6b5e; --accent-ink:#ffffff; --soft:#e8f0ec; --warn:#b5651d; --warn-soft:#faefe0;
+  --s0:#c9a227; --s1:#4a86b8; --s2:#3d6b5e;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#1b1c1a; --card:#262724; --ink:#ecebe6; --muted:#9a968c; --line:#3a3b37;
+    --accent:#7fb5a4; --accent-ink:#10201b; --soft:#22302b; --warn:#e0a463; --warn-soft:#33291c; }
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:16px/1.65 -apple-system,"PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif;-webkit-text-size-adjust:100%}
+#app{max-width:760px;margin:0 auto;padding:16px 16px 80px}
+h1{font-size:22px;margin:8px 0 2px}
+h2{font-size:17px;margin:0 0 6px}
+.sub{color:var(--muted);font-size:14px;margin:0 0 14px}
+button{font:inherit;color:inherit;cursor:pointer}
+.btn{border:1px solid var(--line);background:var(--card);border-radius:10px;padding:8px 14px;min-height:40px}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.ghost{background:transparent}
+.btn.danger{color:#b3402f}
+.btn.small{padding:4px 10px;min-height:32px;font-size:14px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.row.between{justify-content:space-between}
+.chip{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:4px 12px;font-size:14px;min-height:32px}
+.chip.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+input[type=text],input[type=search],select,textarea{width:100%;font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+textarea{resize:vertical;min-height:84px;line-height:1.6}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:-1px}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin:12px 0}
+.field{margin:14px 0}
+.field label{display:flex;justify-content:space-between;align-items:center;gap:8px;font-weight:600;margin-bottom:4px}
+.hint{color:var(--muted);font-size:13px;font-weight:400}
+.list-card{display:block;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin:8px 0}
+.list-card:hover{border-color:var(--accent)}
+.list-card .t{font-weight:600}
+.list-card .s{color:var(--muted);font-size:14px;margin-top:2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.badge{display:inline-block;font-size:12px;border-radius:999px;padding:1px 9px;color:#fff;margin-left:6px;vertical-align:1px}
+.b0{background:var(--s0)}.b1{background:var(--s1)}.b2{background:var(--s2)}
+.tag{font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:0 6px;margin-left:6px}
+.stuck{background:var(--warn-soft);border:1px solid var(--warn);border-radius:14px;padding:12px 14px;margin:10px 0}
+.stuck .step{font-weight:600;color:var(--warn)}
+.stuck ul{margin:6px 0;padding-left:20px}
+.stuck li{margin:3px 0}
+.starter{cursor:pointer;text-decoration:underline dotted}
+.mic.rec{background:#b3402f;color:#fff;border-color:#b3402f}
+canvas{width:100%;height:auto;aspect-ratio:9/5;background:#fff;border:1px solid var(--line);border-radius:10px;touch-action:none;display:block}
+.thumbs{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.thumb{position:relative}
+.thumb img{height:90px;border:1px solid var(--line);border-radius:8px;background:#fff;display:block}
+.thumb button{position:absolute;top:2px;right:2px}
+.status-pick{display:flex;gap:8px;flex-wrap:wrap}
+.saved{color:var(--muted);font-size:13px}
+.big{font-size:26px;font-weight:700;text-align:center;padding:26px 8px}
+.qa{border-left:3px solid var(--accent);padding:2px 12px;margin:10px 0;white-space:pre-wrap}
+.qa b{display:block;font-size:13px;color:var(--muted);font-weight:600}
+details summary{cursor:pointer;color:var(--muted)}
+.empty{text-align:center;color:var(--muted);padding:30px 10px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 16px;border-radius:999px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s}
+.toast.show{opacity:.95}
+.pre{white-space:pre-wrap}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toast" class="toast"></div>
+
+<script>
+"use strict";
+/* ============ 資料層 ============ */
+const KEY = "understanding-cards-v1";
+const STATUS = ["還在想", "能講出來", "能教別人"];
+const INTERVAL = [1, 3, 7]; // 複習間隔（天），依狀態
+const FIELDS = [
+  ["why", "它為什麼存在？沒有它會怎樣？", "想想它在解決什麼麻煩"],
+  ["example", "一個具體例子", "生活或課堂上的情境都可以"],
+  ["confuse", "容易跟誰搞混？", "寫概念名稱就好"],
+  ["distinguish", "我怎麼分辨它們？", "抓一個關鍵差異"]
+];
+
+let state = load();
+let ui = { view: "home", subject: "全部", status: "全部", q: "", id: null, rv: null };
+
+function load() {
+  try {
+    const s = JSON.parse(localStorage.getItem(KEY));
+    if (s && Array.isArray(s.cards)) return s;
+  } catch (e) {}
+  return { subjects: ["心理測驗", "心理學實驗法"], cards: [] };
+}
+let saveTimer;
+function save(now) {
+  const run = () => {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); setSavedLabel("已自動儲存"); }
+    catch (e) { setSavedLabel("儲存失敗（空間不足？請先匯出備份）"); toast("儲存失敗：請先匯出備份"); }
+  };
+  clearTimeout(saveTimer);
+  if (now) run(); else saveTimer = setTimeout(run, 300);
+}
+function setSavedLabel(t) { const el = document.getElementById("saved"); if (el) el.textContent = t; }
+
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+function today() { const d = new Date(); return ymd(d); }
+function ymd(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+function addDays(n) { const d = new Date(); d.setDate(d.getDate() + n); return ymd(d); }
+function toast(t) { const el = $("#toast"); el.textContent = t; el.classList.add("show"); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove("show"), 2200); }
+function byId(id) { return state.cards.find(c => c.id === id); }
+function newCard(subject) {
+  return { id: uid(), subject, name: "", source: "", mine: "", why: "", example: "", confuse: "", distinguish: "",
+    sketches: [], status: 0, created: today(), updated: today(), due: today(), reviews: 0 };
+}
+
+/* ============ 路由 ============ */
+function go(view, id) { stopMic(); ui.view = view; if (id !== undefined) ui.id = id; render(); window.scrollTo(0, 0); }
+function render() {
+  const app = $("#app");
+  if (ui.view === "home") renderHome(app);
+  else if (ui.view === "edit") renderEdit(app);
+  else renderReview(app);
+}
+
+/* ============ 首頁 ============ */
+function renderHome(app) {
+  const subjects = ["全部", ...state.subjects];
+  let cards = state.cards.filter(c =>
+    (ui.subject === "全部" || c.subject === ui.subject) &&
+    (ui.status === "全部" || c.status === Number(ui.status)) &&
+    (!ui.q || (c.name + c.mine + c.source).toLowerCase().includes(ui.q.toLowerCase())));
+  cards.sort((a, b) => b.updated.localeCompare(a.updated));
+  const dueN = state.cards.filter(c => c.due <= today() && c.status < 3 && (ui.subject === "全部" || c.subject === ui.subject)).length;
+
+  app.innerHTML = `
+    <h1>理解卡</h1>
+    <p class="sub">先用自己的話講，講不出來就按「卡住了」，一步一步來。</p>
+    <div class="row" style="margin-bottom:10px">
+      <button class="btn primary" id="add">＋ 新增概念</button>
+      <button class="btn" id="review">開始複習（${dueN}）</button>
+    </div>
+    <div class="row" style="margin-bottom:8px">${subjects.map(s => `<button class="chip ${ui.subject === s ? "on" : ""}" data-sub="${esc(s)}">${esc(s)}</button>`).join("")}
+      <button class="chip" id="addsub">＋科目</button></div>
+    <div class="row" style="margin-bottom:8px">
+      ${["全部", 0, 1, 2].map(s => `<button class="chip ${String(ui.status) === String(s) ? "on" : ""}" data-st="${s}">${s === "全部" ? "所有狀態" : STATUS[s]}</button>`).join("")}
+    </div>
+    <input type="search" id="q" placeholder="搜尋概念或內容" value="${esc(ui.q)}" style="margin-bottom:8px">
+    <div id="list">${cards.length ? cards.map(c => `
+      <button class="list-card" data-id="${c.id}">
+        <div class="t">${esc(c.name || "（未命名）")}<span class="badge b${c.status}">${STATUS[c.status]}</span><span class="tag">${esc(c.subject)}</span></div>
+        <div class="s">${esc(c.mine || "還沒寫自己的話")}</div>
+      </button>`).join("") : `<div class="empty">還沒有概念卡。<br>從一個你現在正在讀的概念開始就好。</div>`}</div>
+    <details style="margin-top:24px"><summary>備份與匯出</summary>
+      <div class="row" style="margin-top:10px">
+        <button class="btn small" id="exmd">匯出 Markdown</button>
+        <button class="btn small" id="exjson">匯出備份 JSON</button>
+        <button class="btn small" id="imjson">匯入備份 JSON</button>
+        <input type="file" id="file" accept="application/json" hidden>
+      </div>
+      <p class="sub" style="margin-top:8px">資料只存在這個瀏覽器裡。換裝置或清除瀏覽器資料前，請先匯出備份。</p>
+    </details>`;
+
+  $("#add").onclick = () => {
+    const c = newCard(ui.subject === "全部" ? state.subjects[0] : ui.subject);
+    state.cards.push(c); save(true); go("edit", c.id);
+  };
+  $("#review").onclick = startReview;
+  $$("[data-sub]").forEach(b => b.onclick = () => { ui.subject = b.dataset.sub; render(); });
+  $$("[data-st]").forEach(b => b.onclick = () => { ui.status = b.dataset.st; render(); });
+  $("#addsub").onclick = () => {
+    const n = (prompt("新科目名稱：") || "").trim();
+    if (n && !state.subjects.includes(n)) { state.subjects.push(n); save(true); ui.subject = n; render(); }
+  };
+  $("#q").oninput = e => { ui.q = e.target.value; const pos = e.target.selectionStart; render(); const q = $("#q"); q.focus(); q.setSelectionRange(pos, pos); };
+  $$(".list-card").forEach(b => b.onclick = () => go("edit", b.dataset.id));
+  $("#exmd").onclick = exportMd;
+  $("#exjson").onclick = exportJson;
+  $("#imjson").onclick = () => $("#file").click();
+  $("#file").onchange = importJson;
+}
+
+/* ============ 編輯頁 ============ */
+function renderEdit(app) {
+  const c = byId(ui.id);
+  if (!c) return go("home");
+  app.innerHTML = `
+    <div class="row between">
+      <button class="btn ghost small" id="back">← 回清單</button>
+      <span class="saved" id="saved">已自動儲存</span>
+    </div>
+    <div class="panel">
+      <div class="field" style="margin-top:0">
+        <label>概念名稱</label>
+        <input type="text" id="name" value="${esc(c.name)}" placeholder="例如：信度、內在效度">
+      </div>
+      <div class="field">
+        <label>科目</label>
+        <select id="subject">${state.subjects.map(s => `<option ${s === c.subject ? "selected" : ""}>${esc(s)}</option>`).join("")}</select>
+      </div>
+      <details ${c.source ? "open" : ""}><summary>教材原文（可貼上 MarginNote 的重點或課本段落）</summary>
+        <textarea id="source" style="margin-top:8px" placeholder="先貼著，之後需要對照時再看">${esc(c.source)}</textarea>
+      </details>
+    </div>
+
+    <div class="panel">
+      <div class="field" style="margin-top:0">
+        <label>用我自己的話說 <span class="hint">不用完整、不用漂亮，講錯也行</span></label>
+        <textarea id="mine" style="min-height:130px" placeholder="先寫、說或畫都可以">${esc(c.mine)}</textarea>
+        <div class="row" style="margin-top:8px">
+          <button class="btn mic" data-mic="mine">🎤 用說的</button>
+          <button class="btn" id="sketchBtn">✍️ 用畫的</button>
+          <button class="btn" id="stuckBtn" style="border-color:var(--warn);color:var(--warn)">我卡住了</button>
+        </div>
+      </div>
+      <div id="stuckBox"></div>
+      <div id="sketchBox" hidden>
+        <canvas id="cv" width="900" height="500"></canvas>
+        <div class="row" style="margin-top:8px">
+          <button class="btn primary small" id="skSave">存進這張卡</button>
+          <button class="btn small" id="skClear">清除重畫</button>
+          <button class="btn ghost small" id="skClose">收起</button>
+        </div>
+      </div>
+      <div class="thumbs" id="thumbs"></div>
+    </div>
+
+    <div class="panel">
+      <p class="sub" style="margin-top:0">下面這幾格是你之後複習時的線索。不用一次填完，哪格有想法先寫哪格。</p>
+      ${FIELDS.map(([k, label, hint]) => `
+        <div class="field">
+          <label>${label} <button class="btn small mic" data-mic="${k}">🎤</button></label>
+          <textarea id="${k}" placeholder="${hint}">${esc(c[k])}</textarea>
+        </div>`).join("")}
+    </div>
+
+    <div class="panel">
+      <label style="font-weight:600">我現在對它的掌握</label>
+      <div class="status-pick" style="margin-top:8px">${STATUS.map((s, i) => `<button class="chip ${c.status === i ? "on" : ""}" data-s="${i}">${s}</button>`).join("")}</div>
+      <p class="hint" style="margin-top:8px">「能教別人」＝不看卡也能講給同學聽，而且能回答他的追問。</p>
+    </div>
+    <div class="row between">
+      <button class="btn primary" id="done">完成</button>
+      <button class="btn danger small" id="del">刪除這張卡</button>
+    </div>`;
+
+  $("#back").onclick = () => { save(true); go("home"); };
+  $("#done").onclick = () => { save(true); go("home"); };
+  const touch = () => { c.updated = today(); save(); };
+  $("#name").oninput = e => { c.name = e.target.value; touch(); };
+  $("#subject").onchange = e => { c.subject = e.target.value; touch(); };
+  ["source", "mine", ...FIELDS.map(f => f[0])].forEach(k => { $("#" + k).oninput = e => { c[k] = e.target.value; touch(); }; });
+  $$("[data-s]").forEach(b => b.onclick = () => { c.status = Number(b.dataset.s); touch(); $$("[data-s]").forEach(x => x.classList.toggle("on", x === b)); });
+  $("#del").onclick = () => {
+    if (confirm("確定刪除「" + (c.name || "未命名") + "」？刪除後無法復原。")) {
+      state.cards = state.cards.filter(x => x.id !== c.id); save(true); go("home");
+    }
+  };
+  $$("[data-mic]").forEach(b => b.onclick = () => toggleMic(b, $("#" + b.dataset.mic)));
+  $("#stuckBtn").onclick = () => showStuck(c);
+  setupSketch(c);
+  drawThumbs(c);
+  if (!c.name) $("#name").focus();
+}
+
+/* --- 卡住了：一次給一小步 --- */
+const SUBJECT_ASK = {
+  "心理測驗": "它在處理測驗分數的哪一個問題？是分數不穩定、量錯東西，還是不知道怎麼解讀？",
+  "心理學實驗法": "它在控制、操弄或測量哪個變項？少了它，別人可以怎麼質疑你的結論？"
+};
+function stuckSteps(c) {
+  const n = c.name || "這個概念";
+  return [
+    { t: "第 1 步：給你一個開頭，接著寫就好", html: `<ul>
+      <li class="starter" data-ins="${esc(n)}，簡單說就是…">「${esc(n)}，簡單說就是…」</li>
+      <li class="starter" data-ins="它想解決的問題是…">「它想解決的問題是…」</li>
+      <li class="starter" data-ins="我現在只懂到…，不懂的是…">「我現在只懂到…，不懂的是…」</li></ul>
+      <div class="hint">點一句就會放進上面的框。寫「我不懂的是…」也算一步。</div>` },
+    { t: "第 2 步：換個問法", html: `<ul>
+      <li>如果沒有「${esc(n)}」，研究者或使用者會遇到什麼麻煩？</li>
+      <li>它跟你已經懂的哪個概念很像？哪裡不一樣？</li>
+      ${SUBJECT_ASK[c.subject] ? `<li>${esc(SUBJECT_ASK[c.subject])}</li>` : ""}</ul>
+      <div class="hint">只回答其中一個就好，可以用說的。</div>` },
+    { t: "第 3 步：先找例子，不用先下定義", html: `<ul>
+      <li>想一個課堂或生活的情境，你覺得它「是」這個概念。為什麼是？</li>
+      <li>再想一個「看起來像、但其實不是」的情境。差在哪？</li></ul>
+      <div class="hint">寫在下面「一個具體例子」那格也可以，不用回頭湊定義。</div>` },
+    { t: "第 4 步：對照教材", html: c.source
+      ? `<div class="pre" style="background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px">${esc(c.source)}</div><div class="hint" style="margin-top:6px">讀完把原文蓋起來，只寫你記得的。</div>`
+      : `<div>你還沒貼教材原文。把課本或 MarginNote 的那一段貼到上面「教材原文」，讀完蓋起來再寫。</div>` }
+  ];
+}
+let stuckI = -1;
+function showStuck(c) {
+  const box = $("#stuckBox");
+  const steps = stuckSteps(c);
+  stuckI = Math.min(stuckI + 1, steps.length - 1);
+  const s = steps[stuckI];
+  box.innerHTML = `<div class="stuck"><div class="step">${s.t}</div>${s.html}
+    <div class="row" style="margin-top:8px">
+      ${stuckI < steps.length - 1 ? `<button class="btn small" id="more">還是不行，再給我一點</button>` : ""}
+      <button class="btn small" id="note">先記下我卡在哪</button>
+      <button class="btn ghost small" id="hide">收起</button></div>
+    <div class="hint" style="margin-top:6px">講不完整沒關係，記下卡在哪，也是在理解。</div></div>`;
+  const more = $("#more"); if (more) more.onclick = () => showStuck(c);
+  $("#hide").onclick = () => { box.innerHTML = ""; stuckI = -1; };
+  $("#note").onclick = () => insertMine(c, "【我卡在】");
+  $$(".starter", box).forEach(el => el.onclick = () => insertMine(c, el.dataset.ins));
+}
+function insertMine(c, text) {
+  const ta = $("#mine");
+  ta.value = (ta.value ? ta.value.replace(/\s*$/, "") + "\n" : "") + text;
+  c.mine = ta.value; c.updated = today(); save();
+  ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
+}
+
+/* --- 語音輸入 --- */
+let rec = null, recBtn = null;
+function stopMic() { if (rec) { try { rec.stop(); } catch (e) {} } rec = null; if (recBtn) { recBtn.classList.remove("rec"); recBtn.textContent = recBtn.dataset.label; recBtn = null; } }
+function toggleMic(btn, ta) {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { toast("這個瀏覽器不支援語音輸入，請改用 Chrome 或 Safari"); return; }
+  if (recBtn === btn) { stopMic(); return; }
+  stopMic();
+  const r = new SR();
+  r.lang = "zh-TW"; r.continuous = true; r.interimResults = false;
+  btn.dataset.label = btn.textContent; btn.classList.add("rec"); btn.textContent = "⏺ 聽中…點一下停止";
+  r.onresult = e => {
+    let t = "";
+    for (let i = e.resultIndex; i < e.results.length; i++) if (e.results[i].isFinal) t += e.results[i][0].transcript;
+    if (t) { ta.value += (ta.value && !/\s$/.test(ta.value) ? " " : "") + t; ta.dispatchEvent(new Event("input")); }
+  };
+  r.onerror = e => { toast("語音輸入中斷：" + (e.error === "not-allowed" ? "請允許使用麥克風" : e.error)); stopMic(); };
+  r.onend = () => { if (rec === r) stopMic(); };
+  rec = r; recBtn = btn;
+  try { r.start(); } catch (e) { stopMic(); }
+}
+
+/* --- 手寫 --- */
+function setupSketch(c) {
+  const cv = $("#cv"), ctx = cv.getContext("2d");
+  const reset = () => { ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, cv.width, cv.height); ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.strokeStyle = "#222"; };
+  reset();
+  let drawing = false, last = null;
+  const pos = e => { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) * cv.width / r.width, y: (e.clientY - r.top) * cv.height / r.height }; };
+  cv.onpointerdown = e => { drawing = true; last = pos(e); cv.setPointerCapture(e.pointerId); };
+  cv.onpointermove = e => {
+    if (!drawing) return;
+    const p = pos(e);
+    ctx.lineWidth = e.pointerType === "pen" && e.pressure ? 1 + e.pressure * 5 : 3;
+    ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(p.x, p.y); ctx.stroke(); last = p;
+  };
+  cv.onpointerup = cv.onpointercancel = () => { drawing = false; };
+  $("#sketchBtn").onclick = () => { const b = $("#sketchBox"); b.hidden = !b.hidden; };
+  $("#skClose").onclick = () => { $("#sketchBox").hidden = true; };
+  $("#skClear").onclick = reset;
+  $("#skSave").onclick = () => {
+    c.sketches.push(cv.toDataURL("image/jpeg", 0.7)); c.updated = today(); save(true);
+    reset(); drawThumbs(c); toast("已存進這張卡");
+  };
+}
+function drawThumbs(c) {
+  const t = $("#thumbs");
+  if (!t) return;
+  t.innerHTML = c.sketches.map((s, i) => `<div class="thumb"><img src="${s}" alt="手寫 ${i + 1}"><button class="btn small" data-d="${i}">✕</button></div>`).join("");
+  $$("[data-d]", t).forEach(b => b.onclick = () => { if (confirm("刪除這張手寫？")) { c.sketches.splice(Number(b.dataset.d), 1); save(true); drawThumbs(c); } });
+}
+
+/* ============ 複習 ============ */
+function startReview() {
+  const q = state.cards.filter(c => c.due <= today() && (ui.subject === "全部" || c.subject === ui.subject) && (c.name || c.mine));
+  if (!q.length) { toast("目前沒有要複習的卡"); return; }
+  q.sort((a, b) => a.due.localeCompare(b.due) || a.status - b.status);
+  ui.rv = { queue: q.map(c => c.id), i: 0, flipped: false, tried: "" };
+  go("review");
+}
+function renderReview(app) {
+  const rv = ui.rv;
+  if (!rv || rv.i >= rv.queue.length) {
+    app.innerHTML = `<h1>複習完成</h1><p class="sub">這輪看完了。靠自己想起來的越多，越牢。</p><button class="btn primary" id="home">回清單</button>`;
+    $("#home").onclick = () => go("home"); return;
+  }
+  const c = byId(rv.queue[rv.i]);
+  if (!c) { rv.i++; return render(); }
+  app.innerHTML = `
+    <div class="row between"><button class="btn ghost small" id="exit">← 結束複習</button><span class="saved">${rv.i + 1} / ${rv.queue.length}</span></div>
+    <div class="panel">
+      <div class="sub" style="margin:0;text-align:center">${esc(c.subject)}</div>
+      <div class="big">${esc(c.name || "（未命名）")}</div>
+      ${!rv.flipped ? `
+        <p class="sub" style="text-align:center">先不要翻面。試著講出來：它是什麼？為什麼需要它？舉個例子。</p>
+        <textarea id="tried" placeholder="想講的內容可以先寫在這裡（可略過）">${esc(rv.tried)}</textarea>
+        <div class="row" style="margin-top:8px"><button class="btn mic" data-mic="tried">🎤 用說的</button>
+        <button class="btn primary" id="flip">我說完了，翻面對照</button></div>`
+      : `
+        ${rv.tried ? `<div class="qa"><b>你剛才說的</b>${esc(rv.tried)}</div>` : ""}
+        ${c.mine ? `<div class="qa"><b>我當初用自己的話說</b>${esc(c.mine)}</div>` : `<div class="hint">這張卡還沒有你自己的話。</div>`}
+        ${FIELDS.map(([k, l]) => c[k] ? `<div class="qa"><b>${l}</b>${esc(c[k])}</div>` : "").join("")}
+        <div class="thumbs">${c.sketches.map(s => `<img src="${s}" style="height:90px;border:1px solid var(--line);border-radius:8px;background:#fff">`).join("")}</div>
+        ${c.source ? `<details style="margin-top:10px"><summary>教材原文</summary><div class="pre">${esc(c.source)}</div></details>` : ""}
+        <p class="sub" style="margin-top:14px">對照後，誠實選一個：</p>
+        <div class="row">
+          <button class="btn" data-r="0">還講不出來</button>
+          <button class="btn" data-r="1">大致講得出來</button>
+          <button class="btn primary" data-r="2">講得完整、能教別人</button>
+        </div>
+        <button class="btn ghost small" id="edit" style="margin-top:10px">編輯這張卡</button>`}
+    </div>`;
+  $("#exit").onclick = () => go("home");
+  if (!rv.flipped) {
+    $("#tried").oninput = e => { rv.tried = e.target.value; };
+    $("#flip").onclick = () => { stopMic(); rv.flipped = true; render(); };
+    $$("[data-mic]").forEach(b => b.onclick = () => toggleMic(b, $("#tried")));
+  } else {
+    $$("[data-r]").forEach(b => b.onclick = () => rate(c, Number(b.dataset.r)));
+    $("#edit").onclick = () => go("edit", c.id);
+  }
+}
+function rate(c, r) {
+  c.status = r; c.reviews++; c.due = addDays(INTERVAL[r]); c.updated = today(); save(true);
+  ui.rv.i++; ui.rv.flipped = false; ui.rv.tried = ""; render(); window.scrollTo(0, 0);
+}
+
+/* ============ 匯出 / 匯入 ============ */
+function download(name, text, type) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+function exportMd() {
+  let out = `# 理解卡匯出（${today()}）\n\n`;
+  state.subjects.forEach(s => {
+    const cs = state.cards.filter(c => c.subject === s);
+    if (!cs.length) return;
+    out += `## ${s}\n\n`;
+    cs.forEach(c => {
+      out += `### ${c.name || "（未命名）"}（${STATUS[c.status]}）\n\n`;
+      if (c.mine) out += `**我的話**\n\n${c.mine}\n\n`;
+      FIELDS.forEach(([k, l]) => { if (c[k]) out += `**${l}**\n\n${c[k]}\n\n`; });
+      if (c.source) out += `<details><summary>教材原文</summary>\n\n${c.source}\n\n</details>\n\n`;
+      if (c.sketches.length) out += `（另有 ${c.sketches.length} 張手寫，請見 JSON 備份）\n\n`;
+    });
+  });
+  download(`理解卡_${today()}.md`, out, "text/markdown");
+}
+function exportJson() { download(`理解卡備份_${today()}.json`, JSON.stringify(state), "application/json"); }
+function importJson(e) {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try {
+      const s = JSON.parse(r.result);
+      if (!s || !Array.isArray(s.cards)) throw 0;
+      if (!confirm(`備份裡有 ${s.cards.length} 張卡。會和現有資料合併（相同卡片以較新的為準），要繼續嗎？`)) return;
+      (s.subjects || []).forEach(x => { if (!state.subjects.includes(x)) state.subjects.push(x); });
+      s.cards.forEach(n => {
+        const i = state.cards.findIndex(c => c.id === n.id);
+        if (i < 0) state.cards.push(n); else if ((n.updated || "") > state.cards[i].updated) state.cards[i] = n;
+      });
+      save(true); render(); toast("匯入完成");
+    } catch (err) { toast("這不是有效的備份檔"); }
+  };
+  r.readAsText(f); e.target.value = "";
+}
+
+render();
+</script>
+</body>
+</html>
